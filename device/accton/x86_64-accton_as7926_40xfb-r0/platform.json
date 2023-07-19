@@ -1,0 +1,756 @@
+{
+    "chassis": {
+        "name": "7926-40XFB",
+        "components": [
+            {
+                "name": "CPLD1"
+            },
+            {
+                "name": "CPLD2"
+            },
+            {
+                "name": "CPLD3"
+            },
+            {
+                "name": "CPLD4"
+            },
+            {
+                "name": "BIOS"
+            }
+        ],
+        "fans": [
+            {
+                "name": "FAN-1F"
+            },
+            {
+                "name": "FAN-1R"
+            },
+            {
+                "name": "FAN-2F"
+            },
+            {
+                "name": "FAN-2R"
+            },
+            {
+                "name": "FAN-3F"
+            },
+            {
+                "name": "FAN-3R"
+            },
+            {
+                "name": "FAN-4F"
+            },
+            {
+                "name": "FAN-4R"
+            },
+            {
+                "name": "FAN-5F"
+            },
+            {
+                "name": "FAN-5R"
+            }
+        ],
+        "fan_drawers":[
+            {
+                "name": "FanTray1",
+                "num_fans" : 2,
+                "fans": [
+                    {
+                        "name": "FAN-1F"
+                    },
+                    {
+                        "name": "FAN-1R"
+                    }
+                ]
+            },
+            {
+                "name": "FanTray2",
+                "num_fans" : 2,
+                "fans": [
+                    {
+                        "name": "FAN-2F"
+                    },
+                    {
+                        "name": "FAN-2R"
+                    }
+                ]
+            },
+            {
+                "name": "FanTray3",
+                "num_fans" : 2,
+                "fans": [
+                    {
+                        "name": "FAN-3F"
+                    },
+                    {
+                        "name": "FAN-3R"
+                    }
+                ]
+            },
+            {
+                "name": "FanTray4",
+                "num_fans" : 2,
+                "fans": [
+                    {
+                        "name": "FAN-4F"
+                    },
+                    {
+                        "name": "FAN-4R"
+                    }
+                ]
+            },
+            {
+                "name": "FanTray5",
+                "num_fans" : 2,
+                "fans": [
+                    {
+                        "name": "FAN-5F"
+                    },
+                    {
+                        "name": "FAN-5R"
+                    }
+                ]
+            }
+        ],
+        "psus": [
+            {
+                "name": "PSU-1",
+                "fans": [
+                    {
+                        "name": "PSU-1 FAN-1"
+                    }
+                ],
+                "thermals": [
+                    {
+                        "name": "PSU-1 temp sensor 1",
+                        "controllable": false,
+                        "low-threshold": false,
+                        "high-threshold": false,
+                        "low-crit-threshold": false,
+                        "high-crit-threshold": false
+                    }
+                ],
+                "temperature": true,
+                "temperature_high_threshold": true
+            },
+            {
+                "name": "PSU-2",
+                "fans": [
+                    {
+                        "name": "PSU-2 FAN-1"
+                    }
+                ],
+                "thermals": [
+                    {
+                        "name": "PSU-2 temp sensor 1",
+                        "controllable": false,
+                        "low-threshold": false,
+                        "high-threshold": false,
+                        "low-crit-threshold": false,
+                        "high-crit-threshold": false
+                    }
+                ],
+                "temperature": true,
+                "temperature_high_threshold": true
+            }
+        ],
+        "thermals": [
+            {
+                "name": "Temp sensor 1",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "Temp sensor 2",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "Temp sensor 3",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "Temp sensor 4",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "Temp sensor 5",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "Temp sensor 6",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "Temp sensor 7",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "Temp sensor 8",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "Temp sensor 9",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "Temp sensor 10",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "CPU Package Temp",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "CPU Core 0 Temp",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "CPU Core 1 Temp",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "CPU Core 2 Temp",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "CPU Core 3 Temp",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "CPU Core 4 Temp",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "CPU Core 5 Temp",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "CPU Core 6 Temp",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            },
+            {
+                "name": "CPU Core 7 Temp",
+                "controllable": true,
+                "low-threshold": false,
+                "high-threshold": true,
+                "low-crit-threshold": false,
+                "high-crit-threshold": true
+            }
+        ],
+        "sfps": [
+            {
+                "name": "Ethernet0"
+            },
+            {
+                "name": "Ethernet2"
+            },
+            {
+                "name": "Ethernet4"
+            },
+            {
+                "name": "Ethernet6"
+            },
+            {
+                "name": "Ethernet8"
+            },
+            {
+                "name": "Ethernet10"
+            },
+            {
+                "name": "Ethernet12"
+            },
+            {
+                "name": "Ethernet14"
+            },
+            {
+                "name": "Ethernet16"
+            },
+            {
+                "name": "Ethernet18"
+            },
+            {
+                "name": "Ethernet20"
+            },
+            {
+                "name": "Ethernet22"
+            },
+            {
+                "name": "Ethernet24"
+            },
+            {
+                "name": "Ethernet26"
+            },
+            {
+                "name": "Ethernet28"
+            },
+            {
+                "name": "Ethernet30"
+            },
+            {
+                "name": "Ethernet32"
+            },
+            {
+                "name": "Ethernet34"
+            },
+            {
+                "name": "Ethernet36"
+            },
+            {
+                "name": "Ethernet38"
+            },
+            {
+                "name": "Ethernet40"
+            },
+            {
+                "name": "Ethernet42"
+            },
+            {
+                "name": "Ethernet44"
+            },
+            {
+                "name": "Ethernet46"
+            },
+            {
+                "name": "Ethernet48"
+            },
+            {
+                "name": "Ethernet50"
+            },
+            {
+                "name": "Ethernet52"
+            },
+            {
+                "name": "Ethernet54"
+            },
+            {
+                "name": "Ethernet56"
+            },
+            {
+                "name": "Ethernet58"
+            },
+            {
+                "name": "Ethernet60"
+            },
+            {
+                "name": "Ethernet62"
+            },
+            {
+                "name": "Ethernet64"
+            },
+            {
+                "name": "Ethernet66"
+            },
+            {
+                "name": "Ethernet68"
+            },
+            {
+                "name": "Ethernet70"
+            },
+            {
+                "name": "Ethernet72"
+            },
+            {
+                "name": "Ethernet74"
+            },
+            {
+                "name": "Ethernet76"
+            },
+            {
+                "name": "Ethernet78"
+            }
+        ]
+    },
+    "interfaces": {
+        "Ethernet0": {
+            "index": "1",
+            "lanes": "1",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth1(Port1)"]
+            }
+        },
+
+        "Ethernet2": {
+            "index": "2",
+            "lanes": "2",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth2(Port2)"]
+            }
+        },
+
+        "Ethernet4": {
+            "index": "3",
+            "lanes": "3",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth3(Port3)"]
+            }
+        },
+
+        "Ethernet6": {
+            "index": "4",
+            "lanes": "4",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth4(Port4)"]
+            }
+        },
+
+        "Ethernet8": {
+            "index": "5",
+            "lanes": "5",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth5(Port5)"]
+            }
+        },
+
+        "Ethernet10": {
+            "index": "6",
+            "lanes": "6",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth6(Port6)"]
+            }
+        },
+
+        "Ethernet12": {
+            "index": "7",
+            "lanes": "7",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth7(Port7)"]
+            }
+        },
+
+        "Ethernet14": {
+            "index": "8",
+            "lanes": "8",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth8(Port8)"]
+            }
+        },
+
+        "Ethernet16": {
+            "index": "9",
+            "lanes": "9",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth9(Port9)"]
+            }
+        },
+
+        "Ethernet18": {
+            "index": "10",
+            "lanes": "10",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth10(Port10)"]
+            }
+        },
+
+        "Ethernet20": {
+            "index": "11",
+            "lanes": "11",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth11(Port11)"]
+            }
+        },
+
+        "Ethernet22": {
+            "index": "12",
+            "lanes": "12",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth12(Port12)"]
+            }
+        },
+
+        "Ethernet24": {
+            "index": "13",
+            "lanes": "13",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth13(Port13)"]
+            }
+        },
+
+        "Ethernet26": {
+            "index": "14",
+            "lanes": "14",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth14(Port14)"]
+            }
+        },
+
+        "Ethernet28": {
+            "index": "15",
+            "lanes": "15",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth15(Port15)"]
+            }
+        },
+
+        "Ethernet30": {
+            "index": "16",
+            "lanes": "16",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth16(Port16)"]
+            }
+        },
+
+        "Ethernet32": {
+            "index": "17",
+            "lanes": "17",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth17(Port17)"]
+            }
+        },
+
+        "Ethernet34": {
+            "index": "18",
+            "lanes": "18",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth18(Port18)"]
+            }
+        },
+
+        "Ethernet36": {
+            "index": "19",
+            "lanes": "19",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth19(Port19)"]
+            }
+        },
+
+        "Ethernet38": {
+            "index": "20",
+            "lanes": "20",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth20(Port20)"]
+            }
+        },
+
+        "Ethernet40": {
+            "index": "21",
+            "lanes": "21",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth21(Port21)"]
+            }
+        },
+
+        "Ethernet42": {
+            "index": "22",
+            "lanes": "22",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth22(Port22)"]
+            }
+        },
+
+        "Ethernet44": {
+            "index": "23",
+            "lanes": "23",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth23(Port23)"]
+            }
+        },
+
+        "Ethernet46": {
+            "index": "24",
+            "lanes": "24",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth24(Port24)"]
+            }
+        },
+
+        "Ethernet48": {
+            "index": "25",
+            "lanes": "53",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth25(Port25)"]
+            }
+        },
+
+        "Ethernet50": {
+            "index": "26",
+            "lanes": "54",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth26(Port26)"]
+            }
+        },
+
+        "Ethernet52": {
+            "index": "27",
+            "lanes": "55",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth27(Port27)"]
+            }
+        },
+
+        "Ethernet54": {
+            "index": "28",
+            "lanes": "56",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth28(Port28)"]
+            }
+        },
+
+        "Ethernet56": {
+            "index": "29",
+            "lanes": "57",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth29(Port29)"]
+            }
+        },
+
+        "Ethernet58": {
+            "index": "30",
+            "lanes": "58",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth30(Port30)"]
+            }
+        },
+
+        "Ethernet60": {
+            "index": "31",
+            "lanes": "59",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth31(Port31)"]
+            }
+        },
+
+        "Ethernet62": {
+            "index": "32",
+            "lanes": "60",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth32(Port32)"]
+            }
+        },
+
+        "Ethernet64": {
+            "index": "33",
+            "lanes": "61",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth33(Port33)"]
+            }
+        },
+
+        "Ethernet66": {
+            "index": "34",
+            "lanes": "62",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth34(Port34)"]
+            }
+        },
+
+        "Ethernet68": {
+            "index": "35",
+            "lanes": "63",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth35(Port35)"]
+            }
+        },
+
+        "Ethernet70": {
+            "index": "36",
+            "lanes": "64",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth36(Port36)"]
+            }
+        },
+
+        "Ethernet72": {
+            "index": "37",
+            "lanes": "65",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth37(Port37)"]
+            }
+        },
+
+        "Ethernet74": {
+            "index": "38",
+            "lanes": "65",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth38(Port38)"]
+            }
+        },
+
+        "Ethernet76": {
+            "index": "39",
+            "lanes": "66",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth39(Port39)"]
+            }
+        },
+
+        "Ethernet78": {
+            "index": "40",
+            "lanes": "67",
+            "breakout_modes": {
+                "1x10G[1G]": ["Eth40(Port40)"]
+            }
+        }
+    }
+}
+
