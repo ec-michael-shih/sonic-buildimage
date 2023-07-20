@@ -35,10 +35,12 @@ def check_file(file_name):
 
                 # Remove trailing chip name "bcm8869x"
                 p = re.sub(r"\.bcm8869x(_adapter|_[a-z]\d)?$", "", p)
+                # Remove trailing chip name "bcm8885x"
+                p = re.sub(r"\.bcm8885x(_adapter|_[a-z]\d)?$", "", p)
                 # Remove trailing unit ".<number>$"
                 p = re.sub(r"\.[0-9]+$", '', p)
                 # Remove trailing port name
-                p = re.sub(r"_[cxg][de](\d+)?$", '', p)
+                p = re.sub(r"_[cxgl][de](\d+)?$", '', p)
                 # Remove trailing port id "{id/number}"
                 p = re.sub(r"\{.*\}", '', p)
                 # Remove trailing port name example
@@ -54,6 +56,8 @@ def check_file(file_name):
                 p = re.sub(r"{[0-9]+\.[0-9]+}$", '', p)
                 # Remove trailing phy with number
                 p = re.sub(r"_phy\d+$", '', p)
+                # Remove trailing fabric with number
+                p = re.sub(r"_fabric\d+$", '', p)
                 # Remove trailing phase of data granularity
                 p = re.sub(r"_data_granularity_\w\w$", '_data_granularity', p)
                 # Remove trailing type of port_init_speed
