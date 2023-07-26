@@ -14,7 +14,7 @@ except ImportError as e:
     raise ImportError(str(e) + "- required module not found")
 
 PSU_FAN_MAX_RPM = 25500
-
+SPEED_TOLERANCE = 10
 FAN_HWMON_I2C_PATH = "/sys/devices/platform/as7926_40xfb_fan/fan{}"
 PSU_HWMON_I2C_PATH ="/sys/devices/platform/as7926_40xfb_psu/psu{}"
 
@@ -134,7 +134,8 @@ class Fan(FanBase):
             An integer, the percentage of variance from target speed which is
                  considered tolerable
         """
-        speed = 0
+        speed = SPEED_TOLERANCE
+
         if not self.is_psu_fan:
             speed_path = "{}{}".format(self.hwmon_path, '_tolerance')
             speed = self._api_helper.read_txt_file(speed_path)

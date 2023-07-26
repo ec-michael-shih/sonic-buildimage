@@ -1,0 +1,14 @@
+{
+    "chassis": {
+        "7926-40XKFB-O-48V-F": {
+            "component": {
+                "CPLD1": { },
+                "CPLD2": { },
+                "CPLD3": { },
+                "CPLD4": { },
+                "BIOS": { }
+            }
+        }
+    }
+}
+
