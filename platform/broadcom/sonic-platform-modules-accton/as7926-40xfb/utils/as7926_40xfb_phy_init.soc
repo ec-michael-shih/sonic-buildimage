@@ -1,0 +1,15 @@
+xphy init phy_id=0x20  speed=100000 modulation=2 if_sys=6 if_line=13 fec_sys=544 fec_line=528 op_mode=1 num=2 fw_load=0 load_type=0
+xphy init phy_id=0x40  speed=100000 modulation=2 if_sys=6 if_line=13 fec_sys=544 fec_line=528 op_mode=1 num=2 fw_load=0 load_type=0
+xphy init phy_id=0x60  speed=100000 modulation=2 if_sys=6 if_line=13 fec_sys=544 fec_line=528 op_mode=1 num=2 fw_load=0 load_type=0
+xphy init phy_id=0x100 speed=100000 modulation=2 if_sys=6 if_line=13 fec_sys=544 fec_line=528 op_mode=1 num=2 fw_load=0 load_type=0
+xphy init phy_id=0x120 speed=100000 modulation=2 if_sys=6 if_line=13 fec_sys=544 fec_line=528 op_mode=1 num=2 fw_load=0 load_type=0
+xphy pn_swap phy_id=0x20  if_side=0 tx_pol=0x1100101011111111 rx_pol=0x1011101110000100
+xphy pn_swap phy_id=0x24  if_side=0 tx_pol=0x0100101011111111 rx_pol=0x1011101110000100
+xphy pn_swap phy_id=0x40  if_side=0 tx_pol=0x1100101011111111 rx_pol=0x1011101110000100
+xphy pn_swap phy_id=0x44  if_side=0 tx_pol=0x0100101011111111 rx_pol=0x1011101110000100
+xphy pn_swap phy_id=0x60  if_side=0 tx_pol=0x1100101011111111 rx_pol=0x1011101110000100
+xphy pn_swap phy_id=0x64  if_side=0 tx_pol=0x0100101011111111 rx_pol=0x1011101110000100
+xphy pn_swap phy_id=0x100 if_side=0 tx_pol=0x1100101011111111 rx_pol=0x1011101110000100
+xphy pn_swap phy_id=0x104 if_side=0 tx_pol=0x0100101011111111 rx_pol=0x1011101110000100
+xphy pn_swap phy_id=0x120 if_side=0 tx_pol=0x0100101011111111 rx_pol=0x1011101110000100
+xphy pn_swap phy_id=0x124 if_side=0 tx_pol=0x1100101011111111 rx_pol=0x1011101110000100

@@ -1,0 +1,15 @@
+[Unit]
+Description=Accton AS7926-40XFB Platform PHY handle service
+Before=opennsl-modules.service pddf-platform-init.service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/extphy_cmd -f /usr/local/bin/as7926_40xfb_phy_init.soc
+RemainAfterExit=yes
+
+# Resource Limitations
+LimitCORE=infinity
+
+[Install]
+WantedBy=opennsl-modules.service
