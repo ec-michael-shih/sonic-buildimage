@@ -1,0 +1,8 @@
+systemctl daemon-reload
+
+systemctl enable as7926-40xfb-platform-handle_phy.service
+systemctl start as7926-40xfb-platform-handle_phy.service &
+
+systemctl enable as7926-40xfb-platform-monitor.service
+systemctl start as7926-40xfb-platform-monitor.service
+# End automatically added section

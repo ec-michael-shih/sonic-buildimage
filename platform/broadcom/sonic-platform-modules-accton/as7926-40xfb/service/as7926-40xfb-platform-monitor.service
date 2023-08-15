@@ -1,7 +1,7 @@
 [Unit]
 Description=Accton AS7926-40XFB Platform Monitoring service
 Before=pmon.service
-After=as7926-40xfb-platform-handle_phy.service
+After=sysinit.target
 DefaultDependencies=no
 
 [Service]
