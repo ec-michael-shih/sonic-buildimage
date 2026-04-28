@@ -1,5 +1,6 @@
 #
-# Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES.
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,7 +30,9 @@ try:
     import glob
     import tempfile
     import subprocess
+    import traceback
     from sonic_py_common import device_info
+    from sonic_py_common.logger import Logger
     from sonic_py_common.general import check_output_pipe
     if sys.version_info[0] > 2:
         import configparser
@@ -49,6 +52,9 @@ try:
 except ImportError as e:
     raise ImportError(str(e) + "- required module not found")
 
+from . import utils
+
+logger = Logger("mlnx-platform-api")
 
 class MPFAManager(object):
     MPFA_EXTENSION = '.mpfa'
@@ -92,8 +98,7 @@ class MPFAManager(object):
             raise RuntimeError("MPFA metadata doesn't exist: path={}".format(metadata_path))
 
         cp = configparser.ConfigParser()
-        with io.open(metadata_path, 'r') as metadata_ini:
-            cp.readfp(metadata_ini)
+        cp.read(metadata_path)
 
         self.__metadata = cp
 
@@ -130,8 +135,8 @@ class ONIEUpdater(object):
     ONIE_FW_UPDATE_CMD_INSTALL = ['/usr/bin/mlnx-onie-fw-update.sh', 'update', '--no-reboot']
     ONIE_FW_UPDATE_CMD_SHOW_PENDING = ['/usr/bin/mlnx-onie-fw-update.sh', 'show-pending']
 
-    ONIE_VERSION_PARSE_PATTERN = '([0-9]{4})\.([0-9]{2})-([0-9]+)\.([0-9]+)\.([0-9]+)-?(rc[0-9]+)?-?(dev)?-([0-9]+)'
-    ONIE_VERSION_BASE_PARSE_PATTERN = '([0-9]+)\.([0-9]+)\.([0-9]+)'
+    ONIE_VERSION_PARSE_PATTERN = r'([0-9]{4})\.([0-9]{2})-([0-9]+)\.([0-9]+)\.([0-9]+)-?(rc[0-9]+)?-?(dev)?-([0-9]+)'
+    ONIE_VERSION_BASE_PARSE_PATTERN = r'([0-9]+)\.([0-9]+)\.([0-9]+)'
     ONIE_VERSION_REQUIRED = '5.2.0016'
 
     ONIE_VERSION_ATTR = 'onie_version'
@@ -669,6 +674,7 @@ class ComponentBIOS(Component):
             print("INFO: Staging {} firmware update with ONIE updater".format(self.name))
             self.onie_updater.update_firmware(image_path, allow_reboot)
         except Exception as e:
+            logger.log_warning("Failed to update {} firmware: {}".format(self.name, str(e)))
             print("ERROR: Failed to update {} firmware: {}".format(self.name, str(e)))
             return False
 
@@ -748,7 +754,13 @@ class ComponentCPLD(Component):
     CPLD_PART_NUMBER_DEFAULT = '0'
     CPLD_VERSION_MINOR_DEFAULT = '0'
 
-    CPLD_FIRMWARE_UPDATE_COMMAND = ['cpldupdate', '--dev', '', '--print-progress', '']
+    # Same ASIC type detection as syncd (sonic_debian_extension installs this path).
+    ASIC_DETECT_SCRIPT = '/usr/bin/asic_detect/asic_detect.sh'
+
+    CPLD_FIRMWARE_UPDATE_COMMAND_SPC1 = ['cpldupdate', '--dev', '', '--print-progress', '']
+    CPLD_FIRMWARE_UPDATE_COMMAND = ['cpldupdate', '--gpio', '--print-progress', '']
+
+    AUX_PWR_CYCLE_FILE = '/var/run/hw-management/system/aux_pwr_cycle'
 
     def __init__(self, idx):
         super(ComponentCPLD, self).__init__()
@@ -773,16 +785,41 @@ class ComponentCPLD(Component):
 
         return mst_dev_list[0]
 
+    @classmethod
+    def _is_spc1_asic(cls):
+        """
+        True if this system has a Spectrum-1 ASIC. SPC1 CPLD programming uses
+        cpldupdate --dev <mst>; newer Spectrum devices use --gpio.
+        Uses platform/mellanox/asic_detect/asic_detect.sh (stdout 'spc1'); the script may
+        exit non-zero for unknown ASIC — we only compare stdout.
+        """
+        if not os.path.isfile(cls.ASIC_DETECT_SCRIPT):
+            return False
+        try:
+            proc = subprocess.run(
+                [cls.ASIC_DETECT_SCRIPT],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                universal_newlines=True,
+                timeout=30)
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        return proc.stdout.strip() == 'spc1'
+
     def _install_firmware(self, image_path):
         if not self._check_file_validity(image_path):
             return False
 
-        mst_dev = self.__get_mst_device()
-        if mst_dev is None:
-            return False
-        self.CPLD_FIRMWARE_UPDATE_COMMAND[2] = mst_dev
-        self.CPLD_FIRMWARE_UPDATE_COMMAND[4] = image_path
-        cmd = self.CPLD_FIRMWARE_UPDATE_COMMAND
+        if self._is_spc1_asic():
+            mst_dev = self.__get_mst_device()
+            if mst_dev is None:
+                return False
+            cmd = list(self.CPLD_FIRMWARE_UPDATE_COMMAND_SPC1)
+            cmd[2] = mst_dev
+            cmd[4] = image_path
+        else:
+            cmd = list(self.CPLD_FIRMWARE_UPDATE_COMMAND)
+            cmd[3] = image_path
 
         try:
             print("INFO: Installing {} firmware update: path={}".format(self.name, image_path))
@@ -868,16 +905,22 @@ class ComponentCPLD(Component):
         with MPFAManager(image_path) as mpfa:
             if not mpfa.get_metadata().has_option('firmware', 'burn'):
                 raise RuntimeError("Failed to get {} burn firmware".format(self.name))
-            if not mpfa.get_metadata().has_option('firmware', 'refresh'):
-                raise RuntimeError("Failed to get {} refresh firmware".format(self.name))
 
             burn_firmware = mpfa.get_metadata().get('firmware', 'burn')
-            refresh_firmware = mpfa.get_metadata().get('firmware', 'refresh')
-
             print("INFO: Processing {} burn file: firmware install".format(self.name))
             if not self._install_firmware(os.path.join(mpfa.get_path(), burn_firmware)):
                 return
 
+            is_platform_with_bmc = device_info.get_bmc_data() is not None
+            if is_platform_with_bmc:
+                print("INFO: Burning {} firmware completed. Running aux power cycle to complete firmware update".format(self.name))
+                utils.write_file(self.AUX_PWR_CYCLE_FILE, '1', raise_exception=True)
+                return
+
+            if not mpfa.get_metadata().has_option('firmware', 'refresh'):
+                raise RuntimeError("Failed to get {} refresh firmware".format(self.name))
+
+            refresh_firmware = mpfa.get_metadata().get('firmware', 'refresh')
             print("INFO: Processing {} refresh file: firmware update".format(self.name))
             self._install_firmware(os.path.join(mpfa.get_path(), refresh_firmware))
 
@@ -908,6 +951,92 @@ class ComponentCPLDSN2201(ComponentCPLD):
             return False
 
         return True
+
+
+class ComponentBMC(Component):
+    COMPONENT_NAME = 'BMC'
+    COMPONENT_DESCRIPTION = 'BMC - Baseboard Management Controller'
+    COMPONENT_FIRMWARE_EXTENSION = ['.fwpkg']
+    BMC_FW_UPDATE_CMD = ["/usr/bin/bmc_fw_update.py", ""]
+
+    def __init__(self):
+        super(ComponentBMC, self).__init__()
+        from .bmc import BMC
+        self.bmc = BMC.get_instance()
+        self.name = self.COMPONENT_NAME
+        self.description = self.COMPONENT_DESCRIPTION
+        self.image_ext_name = self.COMPONENT_FIRMWARE_EXTENSION
+
+    def get_firmware_version(self):
+        """
+        Retrieves the BMC firmware version
+
+        Returns:
+            A string containing the BMC firmware version.
+            Returns 'N/A' if the BMC firmware version cannot be retrieved.
+        """
+        if self.bmc is None:
+            return 'N/A'
+        return self.bmc.get_version()
+
+    def get_available_firmware_version(self, image_path):
+        raise NotImplementedError("BMC component doesn't support available firmware version query")
+
+    def get_firmware_update_notification(self, image_path):
+        return "BMC will be automatically restarted to complete BMC firmware update"
+
+    def auto_update_firmware(self, image_path, boot_action):
+        """
+        Default handling of attempted automatic update for a component of a Mellanox switch.
+        """
+        # Verify image path exists
+        if not os.path.exists(image_path):
+            # Invalid image path
+            return FW_AUTO_ERR_IMAGE
+        # Actually we perform a BMC restart, so the switch boot_action is not relevant
+        # boot_type did not match (skip)
+        if boot_action != "cold":
+            return FW_AUTO_ERR_BOOT_TYPE
+        # Install firmware and restart BMC
+        if not self.install_firmware(image_path):
+            return FW_AUTO_ERR_UNKNOWN
+        return FW_AUTO_INSTALLED
+
+    def install_firmware(self, image_path):
+        """
+        Installs the BMC firmware
+
+        Args:
+            image_path: A string, path to firmware image
+
+        Returns:
+            A boolean, True if the BMC firmware is installed successfully, False otherwise.
+        """
+        if not self._check_file_validity(image_path):
+            print(f"Invalid firmware image path: {image_path}")
+            return False
+        print('Starting BMC firmware update, path={}'.format(image_path))
+        try:
+            self.BMC_FW_UPDATE_CMD[1] = image_path
+            cmd = self.BMC_FW_UPDATE_CMD
+            subprocess.check_call(
+                cmd, 
+                universal_newlines=True,
+                start_new_session=True
+            )
+            print("Successfully updated BMC firmware, and restarted BMC")
+            return True
+        except subprocess.CalledProcessError:
+            print("Failed to update BMC firmware")
+            return False
+        except Exception as e:
+            logger.log_error(f'Exception occurred during BMC firmware update: {str(e)}')
+            print(f'Exception occurred during BMC firmware update: {str(e)}')
+            return False
+
+    def update_firmware(self, image_path):
+        return self.install_firmware(image_path)
+
 
 class ComponentCPLDSN4280(ComponentCPLD):
     CPLD_FIRMWARE_UPDATE_COMMAND = ['cpldupdate', '--gpio', '--print-progress', '']

@@ -10,6 +10,14 @@ import time
 import unicodedata
 from sonic_py_common import device_info
 
+import logging
+
+logger = logging.getLogger("pddf.parse")
+_handler = logging.StreamHandler()
+_handler.setFormatter(logging.Formatter("%(levelname)s: [%(funcName)s:%(lineno)d] %(message)s"))
+logger.addHandler(_handler)
+logger.setLevel(logging.INFO)
+logger.propagate = False
 bmc_cache = {}
 cache = {}
 SONIC_CFGGEN_PATH = '/usr/local/bin/sonic-cfggen'
@@ -20,29 +28,37 @@ dirname = os.path.dirname(os.path.realpath(__file__))
 
 class PddfParse():
     def __init__(self):
+        logger.info("initialization started")
         if not os.path.exists("/usr/share/sonic/platform"):
             platform, hwsku = device_info.get_platform_and_hwsku()
+            logger.info("creating platform symlink for %s", platform)
             os.symlink("/usr/share/sonic/device/"+platform, "/usr/share/sonic/platform")
 
         try:
-            with open('/usr/share/sonic/platform/pddf/pddf-device.json') as f:
+            json_path = "/usr/share/sonic/platform/pddf/pddf-device.json"
+            logger.info("loading device JSON from %s", json_path)
+            with open(json_path) as f:
                 self.data = json.load(f)
+            logger.info("device JSON loaded successfully")
         except IOError:
+            logger.exception("Driver initialization failed")
             if os.path.exists('/usr/share/sonic/platform'):
                 os.unlink("/usr/share/sonic/platform")
             raise Exception('PDDF JSON file not found. PDDF is not supported on this platform')
 
         self.data_sysfs_obj = {}
         self.sysfs_obj = {}
+        logger.info("initialization completed")
 
 
     ###################################################################################################################
     #   GENERIC DEFS
     ###################################################################################################################
     def runcmd(self, cmd):
+        logger.debug("running cmd: %s", cmd)
         rc = os.system(cmd)
         if rc != 0:
-            print("%s -- command failed" % cmd)
+            logger.error("device creation command failed (rc=%d): %s", rc, cmd)
         return rc
 
     def get_dev_idx(self, dev, ops):
@@ -530,9 +546,14 @@ class PddfParse():
         ret = self.create_device(dev['i2c']['dev_attr'], "pddf/devices/multifpgapci/{}/i2c".format(bdf), ops)
         if ret != 0:
             return create_ret.append(ret)
-        
-        # TODO: add GPIO & SPI specific data stores
 
+        # MDIO specific data store
+        if 'mdio' in dev:
+            ret = self.create_device(dev['mdio']['dev_attr'], "pddf/devices/multifpgapci/{}/mdio".format(bdf), ops)
+            if ret != 0:
+                return create_ret.append(ret)
+
+        # TODO: add GPIO & SPI specific data stores
         cmd = "echo 'fpgapci_init' > /sys/kernel/pddf/devices/multifpgapci/{}/dev_ops".format(bdf)
         ret = self.runcmd(cmd)
         if ret != 0:
@@ -543,6 +564,47 @@ class PddfParse():
             ret = self.runcmd(cmd)
             if ret != 0:
                 return create_ret.append(ret)
+
+        if 'mdio' in dev:
+            ret = self.create_mdio_bus(bdf, dev['mdio'], ops)
+            if ret != 0:
+                return create_ret.append(ret)
+
+        if 'gpio' in dev:
+            ret = self.create_multifpgapci_gpio_device(bdf, dev['gpio'], ops)
+            if ret != 0:
+                return create_ret.append(ret)
+
+        return create_ret.append(ret)
+
+    def create_mdio_bus(self, bdf, mdio_dev, ops):
+        for bus in range(int(mdio_dev['dev_attr']['num_virt_ch'], 16)):
+            cmd = "echo {} > /sys/kernel/pddf/devices/multifpgapci/{}/mdio/new_mdio_bus".format(bus, bdf)
+            ret = self.runcmd(cmd)
+            if ret != 0:
+                return ret
+
+        return 0
+
+    def create_multifpgapci_gpio_device(self, bdf, gpio_dev, ops):
+        create_ret = []
+        ret = 0
+
+        for line in gpio_dev.keys():
+            for attr in gpio_dev[line]['attr_list']:
+                ret = self.create_device(attr, "pddf/devices/multifpgapci/{}/gpio/line".format(bdf), ops)
+                if ret != 0:
+                    return create_ret.append(ret)
+
+            cmd = "echo 'init' > /sys/kernel/pddf/devices/multifpgapci/{}/gpio/line/create_line".format(bdf)
+            ret = self.runcmd(cmd)
+            if ret != 0:
+                return create_ret.append(ret)
+
+        cmd = "echo 'init' > /sys/kernel/pddf/devices/multifpgapci/{}/gpio/create_chip".format(bdf)
+        ret = self.runcmd(cmd)
+        if ret != 0:
+            return create_ret.append(ret)
 
         return create_ret.append(ret)
 
@@ -1228,7 +1290,7 @@ class PddfParse():
                 if 'attr_name' in attr.keys() and 'eeprom' in attr.values():
                     ret_val = "xcvr validation success"
                 else:
-                    print("xcvr validation Failed")
+                    logger.error("xcvr validation failed")
                     return
 
         elif dev['i2c']['topo_info']['dev_type'] in self.data['PLATFORM']['pddf_dev_types']['PORT_MODULE']:
@@ -1236,9 +1298,9 @@ class PddfParse():
                 if attr.get("attr_name") in dev_attribs:
                     ret_val = "Success"
                 else:
-                    print("xcvr validation Failed")
+                    logger.error("xcvr validation failed")
                     return
-        print(ret_val)
+        logger.info(ret_val)
 
     def validate_eeprom_device(self, dev, ops):
         devtype_list = ['24c02']
@@ -1251,7 +1313,7 @@ class PddfParse():
                 for attr in dev['i2c']['attr_list']:
                     if attr.get("attr_name") in dev_attribs:
                         ret_val = "eeprom success"
-        print(ret_val)
+        logger.info(ret_val)
 
     def validate_mux_device(self, dev, ops):
         devtype_list = ['pca9548', 'pca9545', 'pca9546', 'pca954x']
@@ -1262,7 +1324,7 @@ class PddfParse():
             for attr in dev['i2c']['channel']:
                 if attr.get("chn") in dev_channels:
                     ret_val = "Mux success"
-        print(ret_val)
+        logger.info(ret_val)
 
     def validate_cpld_device(self, dev, ops):
         devtype_list = ['i2c_cpld']
@@ -1270,7 +1332,7 @@ class PddfParse():
 
         if dev['i2c']['topo_info']['dev_type'] in devtype_list:
             ret_val = "cpld success"
-        print(ret_val)
+        logger.info(ret_val)
 
     def validate_fpgai2c_device(self, dev, ops):
         devtype_list = ['i2c_fpga']
@@ -1278,7 +1340,7 @@ class PddfParse():
 
         if dev['i2c']['topo_info']['dev_type'] in devtype_list:
             ret_val = "fpgai2c success"
-        print(ret_val)
+        logger.info(ret_val)
 
     def validate_sysstatus_device(self, dev, ops):
         dev_attribs = ['board_info', 'cpld1_version', 'power_module_status', 'system_reset5',
@@ -1290,7 +1352,7 @@ class PddfParse():
             for attr in dev['attr_list']:
                 if attr.get("attr_name") in dev_attribs:
                     ret_val = "sysstatus success"
-        print(ret_val)
+        logger.info(ret_val)
 
     def validate_temp_sensor_device(self, dev, ops):
         devtype_list = ['lm75']
@@ -1302,7 +1364,7 @@ class PddfParse():
                 for attr in dev['i2c']['attr_list']:
                     if attr.get("attr_name") in dev_attribs:
                         ret_val = "tempsensor success"
-        print(ret_val)
+        logger.info(ret_val)
 
     def validate_asic_temp_sensor_device(self, dev, ops):
         dev_attribs = ['display_name', 'temp1_high_threshold', 'temp1_high_crit_threshold']
@@ -1312,7 +1374,7 @@ class PddfParse():
             for attr in dev['dev_attr'].keys():
                 if attr in dev_attribs:
                     ret_val = "asic temp sensor success"
-        print(ret_val)
+        logger.info(ret_val)
 
     def validate_fan_device(self, dev, ops):
         ret_val = "fan failed"
@@ -1321,7 +1383,7 @@ class PddfParse():
             if dev['i2c']['dev_attr']['num_fantrays'] is not None:
                 ret_val = "fan success"
 
-        print(ret_val)
+        logger.info(ret_val)
 
     def validate_psu_device(self, dev, ops):
         dev_attribs = ['psu_present', 'psu_model_name', 'psu_power_good', 'psu_mfr_id', 'psu_serial_num',
@@ -1335,12 +1397,11 @@ class PddfParse():
                     if attr.get("attr_devaddr") is not None:
                         if attr.get("attr_offset") is not None:
                             if attr.get("attr_mask") is not None:
-                                if attr.get("attr_len") is not None:
-                                    ret_val = "psu success"
+                                ret_val = "psu success"
                 else:
                     ret_val = "psu failed"
 
-        print(ret_val)
+        logger.info(ret_val)
 
     ###################################################################################################################
     #  SPYTEST 
@@ -1351,12 +1412,12 @@ class PddfParse():
             with open(node, 'r') as f:
                 status = f.read()
         except IOError:
-            print("PDDF_VERIFY_ERR: IOError: node:%s key:%s" % (node, key))
+            logger.exception("IOError: node:%s key:%s", node, key)
             return
 
         status = status.rstrip("\n\r")
         if attr[key] != status:
-            print("PDDF_VERIFY_ERR: node: %s switch:%s" % (node, status))
+            logger.error("verify mismatch: node: %s switch:%s", node, status)
 
     def verify_device(self, attr, path, ops):
         for key in attr.keys():
@@ -1373,21 +1434,21 @@ class PddfParse():
         if (os.path.exists(dir) or validate_type == 'client'):
             for sysfs in obj[validate_type]:
                 if(not os.path.exists(sysfs)):
-                    print("[SYSFS FILE] " + sysfs + ": does not exist")
+                    logger.error("sysfs file %s: does not exist", sysfs)
         else:
-            print("[SYSFS DIR] " + dir + ": does not exist")
+            logger.error("sysfs dir %s: does not exist", dir)
 
     def validate_dsysfs_creation(self, obj, validate_type):
         if validate_type in obj.keys():
             # There is a possibility that some components dont have any device-self.data attr
             if not obj[validate_type]:
-                print("[SYSFS ATTR] for " + validate_type + ": empty ")
+                logger.warning("sysfs attr for %s: empty", validate_type)
             else:
                 for sysfs in obj[validate_type]:
                     if(not os.path.exists(sysfs)):
-                        print("[SYSFS FILE] " + sysfs + ": does not exist")
+                        logger.error("sysfs file %s: does not exist", sysfs)
         else:
-            print("[SYSFS KEY] for " + validate_type + ": not configured")
+            logger.warning("sysfs key for %s: not configured", validate_type)
 
     def verify_sysfs_data(self, verify_type):
         if (verify_type == 'LED'):
@@ -1417,8 +1478,7 @@ class PddfParse():
                 try:
                     device_type = self.data[key]["dev_info"]["device_type"]
                 except Exception as e:
-                    print("dev_info or device_type ERROR: " + key)
-                    print(e)
+                    logger.exception("dev_info or device_type ERROR: %s", key)
 
                 if validate_type == 'mismatch':
                     process_validate_type = 1
@@ -1433,7 +1493,7 @@ class PddfParse():
                 elif validate_type == 'empty':
                     process_validate_type = 1
                     if not device_type:
-                        print("Empty device_type for " + key)
+                        logger.warning("Empty device_type for %s", key)
                         continue
                 elif (validate_type == 'all' or validate_type == device_type):
                     process_validate_type = 1
@@ -1448,7 +1508,7 @@ class PddfParse():
                     temp_obj[device_type] = self.data[key]
                     for schema_file in schema_list:
                         if (os.path.exists(schema_file)):
-                            print("Validate " + schema_file + ";" + key)
+                            logger.info("Validate %s;%s", schema_file, key)
                             json_data = json.dumps(temp_obj)
                             with open(schema_file, 'r') as f:
                                 schema = json.load(f)
@@ -1456,15 +1516,15 @@ class PddfParse():
                                 from jsonschema import validate
                                 validate(temp_obj, schema)
                             except Exception as e:
-                                print("Validation ERROR: " + schema_file + ";" + key)
+                                logger.error("Validation ERROR: %s;%s", schema_file, key)
                                 if validate_type == 'mismatch':
                                     return
                                 else:
-                                    print(e)
+                                    logger.error("%s", e)
                         else:
-                            print("ERROR Missing File: " + schema_file)
+                            logger.error("ERROR Missing File: %s", schema_file)
         if not process_validate_type:
-            print("device_type: " + validate_type + " not configured")
+            logger.warning("device_type: %s not configured", validate_type)
 
     def modules_validation(self, validate_type):
         kos = []
@@ -1492,11 +1552,11 @@ class PddfParse():
         if supported_type:
             if module_validation_status:
                 module_validation_status.append(":ERROR not loaded")
-                print(str(module_validation_status)[1:-1])
+                logger.error("%s", str(module_validation_status)[1:-1])
             else:
-                print("Loaded")
+                logger.info("Loaded")
         else:
-            print(validate_type + " not configured")
+            logger.warning("%s not configured", validate_type)
     
 
 
@@ -1513,7 +1573,7 @@ class PddfParse():
                 if str(val[0]).isdigit():
                     if val[0] != 0:
                         # in case if 'create' functions
-                        print("{}_psu_device failed for {}".format(ops['cmd'], ifce['dev']))
+                        logger.error("%s_psu_device failed for %s", ops['cmd'], ifce['dev'])
                         return val
                 else:
                     # in case of 'show_attr' functions
@@ -1527,7 +1587,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0] != 0:
                     # in case if 'create' functions
-                    print("{}_fan_device failed for {}".format(ops['cmd'], dev['dev_info']['device_name']))
+                    logger.error("%s_fan_device failed for %s", ops['cmd'], dev['dev_info']['device_name'])
 
         return ret
 
@@ -1538,7 +1598,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0] != 0:
                     # in case if 'create' functions
-                    print("{}_temp_sensor_device failed for {}".format(ops['cmd'], dev['dev_info']['device_name']))
+                    logger.error("%s_temp_sensor_device failed for %s", ops['cmd'], dev['dev_info']['device_name'])
 
         return ret
 
@@ -1549,7 +1609,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0] != 0:
                     # in case if 'create' functions
-                    print("{}_asic_temp_sensor_device failed for {}".format(ops['cmd'], dev['dev_info']['device_name']))
+                    logger.error("%s_asic_temp_sensor_device failed for %s", ops['cmd'], dev['dev_info']['device_name'])
 
         return ret
 
@@ -1560,7 +1620,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0] != 0:
                     # in case if 'create' functions
-                    print("{}_dpm_device failed for {}".format(ops['cmd'], dev['dev_info']['device_name']))
+                    logger.error("%s_dpm_device failed for %s", ops['cmd'], dev['dev_info']['device_name'])
 
         return ret
 
@@ -1571,7 +1631,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0] != 0:
                     # in case if 'create' functions
-                    print("{}_dcdc_device failed for {}".format(ops['cmd'], dev['dev_info']['device_name']))
+                    logger.error("%s_dcdc_device failed for %s", ops['cmd'], dev['dev_info']['device_name'])
 
         return ret
 
@@ -1582,7 +1642,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0] != 0:
                     # in case if 'create' functions
-                    print("{}_cpld_device failed for {}".format(ops['cmd'], dev['dev_info']['device_name']))
+                    logger.error("%s_cpld_device failed for %s", ops['cmd'], dev['dev_info']['device_name'])
 
         return ret
 
@@ -1593,7 +1653,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0]!=0:
                     # in case if 'create' functions
-                    print("{}_fpgai2c_device failed".format(ops['cmd']))
+                    logger.error("%s_fpgai2c_device failed", ops['cmd'])
                     return ret
             else:
                 # in case of 'show_attr' functions
@@ -1608,7 +1668,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0] != 0:
                     # in case if 'create' functions
-                    print("{}_cpldmux_device() cmd failed".format(ops['cmd']))
+                    logger.error("%s_cpldmux_device() cmd failed", ops['cmd'])
                     return ret
             else:
                 val.extend(ret)
@@ -1644,7 +1704,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0] != 0:
                     # in case if 'create' functions
-                    print("{}_cpldmux_device() cmd failed".format(ops['cmd']))
+                    logger.error("%s_cpldmux_device() cmd failed", ops['cmd'])
                     return ret
             else:
                 val.extend(ret)
@@ -1658,7 +1718,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0] != 0:
                     # in case if 'create' functions
-                    print("{}_sysstatus_device failed for {}".format(ops['cmd'], dev['dev_info']['device_name']))
+                    logger.error("%s_sysstatus_device failed for %s", ops['cmd'], dev['dev_info']['device_name'])
 
         return ret
 
@@ -1669,7 +1729,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0] != 0:
                     # in case if 'create' functions
-                    print("{}_gpio_device failed for {}".format(ops['cmd'], dev['dev_info']['device_name']))
+                    logger.error("%s_gpio_device failed for %s", ops['cmd'], dev['dev_info']['device_name'])
 
         return ret
 
@@ -1680,7 +1740,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0] != 0:
                     # in case if 'create' functions
-                    print("{}_mux_device() cmd failed for {}".format(ops['cmd'], dev['dev_info']['device_name']))
+                    logger.error("%s_mux_device() cmd failed for %s", ops['cmd'], dev['dev_info']['device_name'])
                     return ret
             else:
                 val.extend(ret)
@@ -1713,7 +1773,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0] != 0:
                     # in case if 'create' functions
-                    print("{}_mux_device() cmd failed for {}".format(ops['cmd'], dev['dev_info']['device_name']))
+                    logger.error("%s_mux_device() cmd failed for %s", ops['cmd'], dev['dev_info']['device_name'])
                     return ret
             else:
                 val.extend(ret)
@@ -1727,7 +1787,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0] != 0:
                     # in case if 'create' functions
-                    print("{}_eeprom_device() cmd failed for {}".format(ops['cmd'], dev['dev_info']['device_name']))
+                    logger.error("%s_eeprom_device() cmd failed for %s", ops['cmd'], dev['dev_info']['device_name'])
 
         return ret
 
@@ -1739,7 +1799,7 @@ class PddfParse():
                 if str(ret[0]).isdigit():
                     if ret[0] != 0:
                         # in case if 'create' functions
-                        print("{}_xcvr_device() cmd failed for {}".format(ops['cmd'], ifce['dev']))
+                        logger.error("%s_xcvr_device() cmd failed for %s", ops['cmd'], ifce['dev'])
                         return ret
                 else:
                     val.extend(ret)
@@ -1782,7 +1842,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0]!=0:
                     # in case if 'create' functions
-                    print("{}_fpgapci_device() cmd failed".format(ops['cmd']))
+                    logger.error("%s_fpgapci_device() cmd failed", ops['cmd'])
                     return ret
             else:
                 val.extend(ret)
@@ -1815,7 +1875,7 @@ class PddfParse():
         if ret:
             if str(ret[0]).isdigit():
                 if ret[0] != 0:
-                    print("{}_multifpgapcisystem_device() cmd failed".format(ops['cmd']))
+                    logger.error("%s_multifpgapcisystem_device() cmd failed", ops['cmd'])
                     return ret
             else:
                 val.extend(ret)
@@ -1829,7 +1889,7 @@ class PddfParse():
             if str(ret[0]).isdigit():
                 if ret[0] != 0:
                     # in case if 'create' functions
-                    print("{}_multifpgapci_device() cmd failed".format(ops['cmd']))
+                    logger.error("%s_multifpgapci_device() cmd failed", ops['cmd'])
                     return ret
             else:
                 val.extend(ret)
@@ -1849,6 +1909,8 @@ class PddfParse():
     # 'delete', 'show' and 'validate' ops return None
     def dev_parse(self, dev, ops):
         attr=dev['dev_info']
+        logger.debug("%s: %s device %s", ops["cmd"], attr["device_type"], attr.get("device_name", ""))
+
         if attr['device_type'] == 'CPU':
             if ops['cmd']=='delete':
                 return self.cpu_parse_reverse(dev, ops)
@@ -1954,6 +2016,8 @@ class PddfParse():
 
 
     def led_parse(self, ops):
+        logger.debug("%s: parsing LED platform device", ops["cmd"])
+        
         getattr(self, ops['cmd']+"_led_platform_device")("PLATFORM", ops)
         for key in self.data.keys():
             if key != 'PLATFORM' and 'dev_info' in self.data[key]:
@@ -1968,31 +2032,75 @@ class PddfParse():
                 attr = self.data[key]['dev_info']
                 if attr['device_type'] == type:
                     list.append(self.data[key])
+                    logger.debug("%s: LED device %s", ops["cmd"], key)
 
 
     def create_pddf_devices(self):
+        logger.info("create_pddf_devices started")
+        logger.info("parsing multi-FPGA PCI system")
         ret = self.multifpgapcisystem_parse({"cmd": "create", "target": "all", "attr": "all"})
         if ret:
             if ret[0] != 0:
+                logger.error(
+                    "PddfParse: multi-FPGA PCI system parse failed (rc=%d)", ret[0]
+                )
                 return ret[0]
+        logger.info("parsing LED configuration")
         self.led_parse({"cmd": "create", "target": "all", "attr": "all"})
         create_ret = 0
+        logger.info("parsing SYSTEM device tree")
         ret = self.dev_parse(self.data['SYSTEM'], {"cmd": "create", "target": "all", "attr": "all"})
         if ret:
             if ret[0] != 0:
+                logger.error(
+                    "PddfParse: SYSTEM device tree parse failed (rc=%d)", ret[0]
+                )
                 return ret[0]
         if 'SYSSTATUS' in self.data:
+            logger.info("parsing SYSSTATUS device tree")
             ret = self.dev_parse(self.data['SYSSTATUS'], {"cmd": "create", "target": "all", "attr": "all"})
             if ret:
                 if ret[0] != 0:
+                    logger.error(
+                        "PddfParse: SYSSTATUS device tree parse failed (rc=%d)", ret[0]
+                    )
                     return ret[0]
+        logger.info("create_pddf_devices completed successfully")
         return create_ret
 
+    def create_subtree(self, device_name):
+        subtree = self.data.get(device_name)
+        if not subtree:
+            logger.error("Invalid device_name %s", device_name)
+            return 1
+
+        ret = self.dev_parse(subtree, {"cmd": "create", "target": "all", "attr": "all"})
+        if ret:
+            if ret[0] != 0:
+                return ret[0]
+
+        return 0
+
+    def delete_subtree(self, device_name):
+        subtree = self.data.get(device_name)
+        if not subtree:
+            logger.error("Invalid device_name %s", device_name)
+            return 1
+
+        ret = self.dev_parse(self.data[device_name], {"cmd": "delete", "target": "all", "attr": "all"})
+        if ret:
+            if ret[0] != 0:
+                return ret[0]
+
+        return 0
 
     def delete_pddf_devices(self):
+        logger.info("delete_pddf_devices started")
         self.dev_parse(self.data['SYSTEM'], {"cmd": "delete", "target": "all", "attr": "all"})
         if 'SYSSTATUS' in self.data:
+            logger.info("deleting SYSSTATUS devices")
             self.dev_parse(self.data['SYSSTATUS'], {"cmd": "delete", "target": "all", "attr": "all"})
+        logger.info("delete_pddf_devices completed")
 
     def populate_pddf_sysfsobj(self):
         self.dev_parse(self.data['SYSTEM'], {"cmd": "show", "target": "all", "attr": "all"})
@@ -2230,6 +2338,10 @@ def main():
     parser.add_argument("--validate", action='store', help="Validate the device specific attribute data elements")
     parser.add_argument("--schema", action='store', nargs="+",  help="Schema Validation")
     parser.add_argument("--modules", action='store', nargs="+", help="Loaded modules validation")
+    parser.add_argument("--create-subtree", type=str,
+        help="Create a specified node and all its descendant nodes in the I2C topology.")
+    parser.add_argument("--delete-subtree", type=str,
+        help="Remove a specified node and all its descendant nodes from the I2C topology.")
 
     args = parser.parse_args()
 
@@ -2237,7 +2349,7 @@ def main():
     try:
         pddf_obj = PddfParse()
     except Exception as e:
-        print("%s" % str(e))
+        logger.exception("Failed to instantiate PddfParse")
         sys.exit()
 
     if args.create:
@@ -2295,6 +2407,11 @@ def main():
     if args.modules:
         pddf_obj.modules_validation(args.modules[0])
 
+    if args.create_subtree:
+        sys.exit(pddf_obj.create_subtree(args.create_subtree))
+
+    if args.delete_subtree:
+        sys.exit(pddf_obj.delete_subtree(args.delete_subtree))
 
 if __name__ == "__main__":
     main()

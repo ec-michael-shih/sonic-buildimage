@@ -1,7 +1,7 @@
 #
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# Apache-2.0
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #
 
 """Class Implementation for per DPU functionality"""
+import errno
 import os.path
 import time
 import multiprocessing
@@ -24,6 +25,7 @@ import subprocess
 from contextlib import contextmanager
 from select import poll, POLLPRI, POLLIN
 from enum import Enum
+import signal
 
 try:
     from .inotify_helper import InotifyHelper
@@ -39,7 +41,7 @@ SYSTEM_BASE = os.path.join(HW_BASE, "system/")
 PCI_BASE = "/sys/bus/pci/"
 PCI_DEV_BASE = os.path.join(PCI_BASE, "devices/")
 
-logger = SysLogger()
+logger = SysLogger("dpuctl_plat")
 
 WAIT_FOR_SHTDN = 120
 WAIT_FOR_DPU_READY = 180
@@ -107,19 +109,26 @@ class DpuCtlPlat():
         self.pci_dev_path = []
         self.verbosity = False
 
-    def setup_logger(self, use_print=False):
+    def setup_logger(self, use_print=False, use_notice_level=False):
         def print_with_time(msg):
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
             print(f"[{timestamp}] {msg}")
+            logger.log_notice(f"{msg}")
 
         if use_print:
             self.logger_info = print_with_time
             self.logger_error = print_with_time 
+            self.logger_warning = print_with_time
             self.logger_debug = print_with_time
             return
-        self.logger_debug = logger.log_debug
-        self.logger_info = logger.log_info
+        if use_notice_level:
+            self.logger_debug = logger.log_notice
+            self.logger_info = logger.log_notice
+        else:
+            self.logger_debug = logger.log_debug
+            self.logger_info = logger.log_info
         self.logger_error = logger.log_error
+        self.logger_warning = logger.log_warning
 
     def log_debug(self, msg=None):
         # Print only in verbose mode
@@ -130,6 +139,9 @@ class DpuCtlPlat():
 
     def log_error(self, msg=None):
         self.logger_error(f"{self.dpu_name}: {msg}")
+
+    def log_warning(self, msg=None):
+        self.logger_warning(f"{self.dpu_name}: {msg}")
 
     def run_cmd_output(self, cmd, raise_exception=True):
         try:
@@ -196,7 +208,8 @@ class DpuCtlPlat():
         except (FileNotFoundError, PermissionError) as inotify_exc:
             raise type(inotify_exc)(f"{self.dpu_name}:{str(inotify_exc)}")
         if not dpu_shtdn_rdy:
-            self.log_error(f"Going Down Unsuccessful")
+            # Log level warning since we have a fallback to force power off
+            self.log_warning(f"Going Down Unsuccessful")
             return False
         return True
 
@@ -231,6 +244,7 @@ class DpuCtlPlat():
             if count > 1:
                 time.sleep(1)
                 self._power_off_force()
+                time.sleep(1)
                 return self._power_on_force(count=count - 1)
             self.log_error(f"Failed Force power on! Exiting")
             return False
@@ -247,7 +261,8 @@ class DpuCtlPlat():
         if not dpu_rdy:
             self.log_error(f"Failed power on! Trying Force Power on")
             self._power_off_force()
-            return self._power_on_force()
+            time.sleep(1)
+            return self._power_on_force(count=3)
         self.log_info(f"Power on Successful!")
         return True
 
@@ -257,7 +272,8 @@ class DpuCtlPlat():
             for pci_dev_path in self.get_pci_dev_path():
                 remove_path = os.path.join(pci_dev_path, "remove")
                 if os.path.exists(remove_path):
-                    self.write_file(remove_path, OperationType.SET.value)
+                    with self.time_check_context(f"pci remove {pci_dev_path}"):
+                        self.write_file(remove_path, OperationType.SET.value)
             return True
         except Exception as e:
             self.log_error(f"Failed PCI Removal with error {e}")
@@ -266,8 +282,10 @@ class DpuCtlPlat():
     def dpu_pci_scan(self):
         """PCI Scan API"""
         try:
-            pci_scan_path = "/sys/bus/pci/rescan"
-            self.write_file(pci_scan_path, OperationType.SET.value)
+            for pci_dev_path in self.get_pci_dev_path():
+                if not os.path.exists(pci_dev_path):
+                    #Only log error if the device is not found, don't perform explicit ``
+                    self.log_warning(f"PCI device {pci_dev_path} not found")
             return True
         except Exception as e:
             self.log_error(f"Failed to rescan with error {e}")
@@ -318,12 +336,14 @@ class DpuCtlPlat():
         return_value = True
         if not dpu_rdy:
             self._power_off_force()
+            time.sleep(1)
             return_value = self._power_on_force()
         return return_value
 
     def _reboot_force(self, no_wait):
         """Per DPU Force Reboot Private function API"""
         self._power_off_force()
+        time.sleep(1)
         return_value = self._power_on_force(no_wait=no_wait)
         return return_value
 
@@ -396,8 +416,27 @@ class DpuCtlPlat():
             self.log_error(f"Could not obtain status of DPU")
             raise e
 
+    def _log_boot_progress_read_failure(self, msg, attempt):
+        """log_func for utils.read_int_from_file; logs via this DPU's SysLogger."""
+        # utils formats: "Failed to read from file <path> - repr(exc)"
+        enxio = f'({errno.ENXIO},' in msg
+        if enxio and attempt < 2:
+            self.log_warning(
+                f"ENXIO - read unavailable for boot_progress, attempt {attempt + 1} of 3")
+            return
+        self.log_error(msg)
+
     def read_boot_prog(self):
-        return utils.read_int_from_file(self.boot_prog_path, raise_exception=True)
+        for attempt in range(3):
+            try:
+                return utils.read_int_from_file(
+                    self.boot_prog_path,
+                    raise_exception=True,
+                    log_func=lambda m, a=attempt: self._log_boot_progress_read_failure(m, a))
+            except OSError as e:
+                if e.errno != errno.ENXIO or attempt == 2:
+                    raise
+                time.sleep(1)
 
     def read_force_power_path(self):
         return utils.read_int_from_file(self.pwr_f_path, raise_exception=True)
@@ -408,20 +447,32 @@ class DpuCtlPlat():
         read_value = self.read_boot_prog()
         if read_value != self.boot_prog_state:
             self.dpu_boot_prog_update(read_value)
-            self.log_error(f"The boot_progress status is changed to = {self.boot_prog_indication}")
+            self.log_info(f"The boot_progress status is changed to = {self.boot_prog_indication}")
 
     def watch_boot_prog(self):
         """Read boot_progress and update the value in an infinite loop"""
+        def signal_handler(signum, frame):
+            self.log_info("Received termination signal, shutting down...")
+            raise SystemExit("Terminated by signal")
+        
+        # Register signal handler for SIGTERM
+        signal.signal(signal.SIGTERM, signal_handler)
+        
+        file = None
+        file = open(self.boot_prog_path, "r")
+        p = poll()
+        p.register(file.fileno(), POLLPRI)
         try:
-            self.dpu_boot_prog_update()
-            self.log_info(f"The initial boot_progress status is = {self.boot_prog_indication}")
-            file = open(self.boot_prog_path, "r")
-            p = poll()
-            p.register(file.fileno(), POLLPRI)
             while True:
-                self.update_boot_prog_once(p)
-        except Exception:
-            self.log_error(f"Exception occured during watch_boot_progress!")
+                try:
+                    self.update_boot_prog_once(p)
+                except SystemExit:
+                    break  # Exit on termination signal
+        except Exception as e:
+            self.log_error(f"Error during watch_boot_progress: {e}")
+        finally:
+            if file:
+                file.close()
 
     @contextmanager
     def boot_prog_context(self):
@@ -438,6 +489,8 @@ class DpuCtlPlat():
             finally:
                 if self.boot_prog_proc and self.boot_prog_proc.is_alive():
                     self.boot_prog_proc.terminate()
+                    self.boot_prog_proc.join(timeout=3)
+                    self.boot_prog_proc.kill()
                     self.boot_prog_proc.join()
         else:
             yield
